@@ -1,4 +1,24 @@
 <resources>
     <string name="app_name">Free Models Finder</string>
     <string name="list_title">OpenRouter — Free Now</string>
+
+    <string name="chat_input_hint">اكتب رسالتك…</string>
+    <string name="send">إرسال</string>
+
+    <string name="openrouter_key_title">مفتاح OpenRouter API</string>
+    <string name="openrouter_key_hint">sk-or-v1-…</string>
+    <string name="save">حفظ</string>
+    <string name="cancel">إلغاء</string>
+    <string name="connect">اتصال</string>
+    <string name="disconnect">فصل</string>
+
+    <string name="mcp_dialog_title">اتصال MCP (Composio)</string>
+    <string name="mcp_url_hint">رابط MCP server (من Composio مثلاً)</string>
+    <string name="mcp_auth_hint">Authorization header (اختياري)</string>
+    <string name="mcp_connect_menu">اتصال MCP</string>
+    <string name="mcp_connected_menu">MCP: متصل (%1$d أدوات)</string>
+    <string name="mcp_connected_toast">اتصل بـ MCP – %1$d أدوات متاحة</string>
+    <string name="mcp_disconnected">تم فصل MCP</string>
+    <string name="mcp_not_connected">MCP مش متصل</string>
+    <string name="tool_error_prefix">خطأ من الأداة:</string>
 </resources>

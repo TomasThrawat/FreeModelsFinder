@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_mcp"
+        android:title="@string/mcp_connect_menu"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_api_key"
+        android:title="@string/openrouter_key_title"
+        app:showAsAction="never" />
+
+</menu>

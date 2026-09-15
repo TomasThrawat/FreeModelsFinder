@@ -1,5 +1,6 @@
 package com.tomasthrawat.freemodelsfinder
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -18,7 +19,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var openRouterList: RecyclerView
 
-    private val openRouterAdapter = ModelAdapter(emptyList())
+    private val openRouterAdapter = ModelAdapter(emptyList()) { model -> openChat(model) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,6 +35,12 @@ class MainActivity : AppCompatActivity() {
         swipeRefresh.setOnRefreshListener { loadModels() }
 
         loadModels()
+    }
+
+    private fun openChat(model: ModelItem) {
+        val intent = Intent(this, ChatActivity::class.java)
+        intent.putExtra(ChatActivity.EXTRA_MODEL_ID, model.title)
+        startActivity(intent)
     }
 
     private fun loadModels() {

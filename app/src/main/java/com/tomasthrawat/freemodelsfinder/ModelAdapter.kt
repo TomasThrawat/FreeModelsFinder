@@ -6,8 +6,10 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
-class ModelAdapter(private var items: List<ModelItem>) :
-    RecyclerView.Adapter<ModelAdapter.ViewHolder>() {
+class ModelAdapter(
+    private var items: List<ModelItem>,
+    private val onItemClick: (ModelItem) -> Unit
+) : RecyclerView.Adapter<ModelAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val title: TextView = view.findViewById(R.id.textTitle)
@@ -24,6 +26,8 @@ class ModelAdapter(private var items: List<ModelItem>) :
         val item = items[position]
         holder.title.text = item.title
         holder.subtitle.text = item.subtitle
+        // Tap a model to open a chat screen wired to that exact OpenRouter model id.
+        holder.itemView.setOnClickListener { onItemClick(item) }
     }
 
     override fun getItemCount(): Int = items.size
