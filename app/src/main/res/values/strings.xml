@@ -17,8 +17,13 @@
     <string name="mcp_auth_hint">Authorization header (اختياري)</string>
     <string name="mcp_connect_menu">اتصال MCP</string>
     <string name="mcp_connected_menu">MCP: متصل (%1$d أدوات)</string>
-    <string name="mcp_connected_toast">اتصل بـ MCP – %1$d أدوات متاحة</string>
+    <string name="mcp_connected_toast">اتصل بـ MCP — %1$d أدوات متاحة</string>
     <string name="mcp_disconnected">تم فصل MCP</string>
     <string name="mcp_not_connected">MCP مش متصل</string>
     <string name="tool_error_prefix">خطأ من الأداة:</string>
+
+    <string name="attach_file_cd">إرفاق ملف</string>
+    <string name="clear_attachments_cd">مسح المرفقات</string>
+    <string name="attachment_error_prefix">تعذّر إرفاق:</string>
+    <string name="attachment_open_error">تعذّر فتح الملف</string>
 </resources>

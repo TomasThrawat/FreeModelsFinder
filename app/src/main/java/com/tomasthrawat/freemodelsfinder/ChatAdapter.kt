@@ -38,10 +38,10 @@ class ChatAdapter(private val items: MutableList<ChatMessage>) :
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val item = items[position]
         when (holder) {
-            is UserHolder -> holder.text.text = item.content
+            is UserHolder -> holder.text.text = displayText(item)
             is OtherHolder -> {
                 holder.role.text = if (item.role == "tool") "🔧 Tool" else "🤖 Assistant"
-                holder.text.text = item.content
+                holder.text.text = displayText(item)
             }
         }
     }
@@ -51,5 +51,12 @@ class ChatAdapter(private val items: MutableList<ChatMessage>) :
     fun addMessage(message: ChatMessage) {
         items.add(message)
         notifyItemInserted(items.size - 1)
+    }
+
+    /** Message text plus, when present, a "📎 file1، file2" line listing attached files. */
+    private fun displayText(item: ChatMessage): String {
+        if (item.attachments.isEmpty()) return item.content
+        val attachmentsLine = item.attachments.joinToString(prefix = "📎 ", separator = "، ")
+        return if (item.content.isBlank()) attachmentsLine else "${item.content}\n$attachmentsLine"
     }
 }

@@ -65,7 +65,9 @@ object OpenRouterClient {
         connection.requestMethod = "POST"
         connection.doOutput = true
         connection.connectTimeout = 30000
-        connection.readTimeout = 60000
+        // Generous read timeout: attachments can make both the upload and the model's
+        // processing of them slow, and no size limit is enforced when picking files.
+        connection.readTimeout = 180000
         connection.setRequestProperty("Content-Type", "application/json")
         connection.setRequestProperty("Authorization", "Bearer $apiKey")
 

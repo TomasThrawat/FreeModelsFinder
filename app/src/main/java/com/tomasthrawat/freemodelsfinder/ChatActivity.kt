@@ -2,23 +2,30 @@ package com.tomasthrawat.freemodelsfinder
 
 import android.app.AlertDialog
 import android.content.Context
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.OpenableColumns
 import android.text.InputType
+import android.util.Base64
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.webkit.MimeTypeMap
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
 
 /**
@@ -26,6 +33,11 @@ import java.util.concurrent.Executors
  * Talks to OpenRouter's chat-completions endpoint for that exact model id, and — once
  * an MCP server is connected from the overflow menu (e.g. a Composio-generated MCP
  * URL) — passes its tools through so the model can call them mid-conversation.
+ *
+ * Also lets the user attach files (any type, no size limit enforced here) alongside
+ * their text via the 📎 button: images are sent as "image_url" data URLs, everything
+ * else as a generic "file" data URL block (OpenRouter's file-parser handles PDFs;
+ * support for other formats depends on the model/provider actually picked).
  */
 class ChatActivity : AppCompatActivity() {
 
@@ -44,15 +56,25 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var messageList: RecyclerView
     private lateinit var inputText: EditText
     private lateinit var sendButton: Button
+    private lateinit var attachButton: Button
+    private lateinit var attachmentsPreview: LinearLayout
+    private lateinit var attachmentsPreviewText: TextView
+    private lateinit var clearAttachmentsButton: Button
     private lateinit var chatAdapter: ChatAdapter
 
     private val uiMessages = mutableListOf<ChatMessage>()
     private val apiMessages = JSONArray()
+    private val pendingAttachments = mutableListOf<Attachment>()
 
     private var mcpClient: McpClient? = null
     private var mcpConnecting = false
 
     private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
+
+    /** Opens the system file picker; no MIME filter and no count/size limit. */
+    private val pickFilesLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris -> if (uris.isNotEmpty()) readAttachments(uris) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,12 +93,21 @@ class ChatActivity : AppCompatActivity() {
         messageList = findViewById(R.id.recyclerChat)
         inputText = findViewById(R.id.editMessage)
         sendButton = findViewById(R.id.buttonSend)
+        attachButton = findViewById(R.id.buttonAttach)
+        attachmentsPreview = findViewById(R.id.layoutAttachmentsPreview)
+        attachmentsPreviewText = findViewById(R.id.textAttachmentsPreview)
+        clearAttachmentsButton = findViewById(R.id.buttonClearAttachments)
 
         chatAdapter = ChatAdapter(uiMessages)
         messageList.layoutManager = LinearLayoutManager(this)
         messageList.adapter = chatAdapter
 
         sendButton.setOnClickListener { onSendClicked() }
+        attachButton.setOnClickListener { pickFilesLauncher.launch(arrayOf("*/*")) }
+        clearAttachmentsButton.setOnClickListener {
+            pendingAttachments.clear()
+            updateAttachmentsPreview()
+        }
 
         apiMessages.put(JSONObject().apply {
             put("role", "system")
@@ -125,21 +156,123 @@ class ChatActivity : AppCompatActivity() {
 
     private fun onSendClicked() {
         val text = inputText.text.toString().trim()
-        if (text.isEmpty()) return
+        if (text.isEmpty() && pendingAttachments.isEmpty()) return
         if (getApiKey().isNullOrBlank()) {
             promptForApiKey()
             return
         }
 
+        val attachmentsForThisMessage = pendingAttachments.toList()
         inputText.setText("")
-        addMessageToUi(ChatMessage("user", text))
+        pendingAttachments.clear()
+        updateAttachmentsPreview()
+
+        addMessageToUi(ChatMessage("user", text, attachmentsForThisMessage.map { it.filename }))
         apiMessages.put(JSONObject().apply {
             put("role", "user")
-            put("content", text)
+            put("content", buildUserContent(text, attachmentsForThisMessage))
         })
 
         setSending(true)
         runConversationTurn()
+    }
+
+    /**
+     * Plain text when there's nothing attached (simplest, most widely compatible payload).
+     * With attachments, an OpenAI/OpenRouter-style content array: images become
+     * "image_url" data URLs, every other file type becomes a generic "file" data URL block.
+     */
+    private fun buildUserContent(text: String, attachments: List<Attachment>): Any {
+        if (attachments.isEmpty()) return text
+
+        val array = JSONArray()
+        if (text.isNotBlank()) {
+            array.put(JSONObject().apply {
+                put("type", "text")
+                put("text", text)
+            })
+        }
+        for (att in attachments) {
+            val dataUrl = "data:${att.mimeType};base64,${att.base64Data}"
+            if (att.mimeType.startsWith("image/")) {
+                array.put(JSONObject().apply {
+                    put("type", "image_url")
+                    put("image_url", JSONObject().apply { put("url", dataUrl) })
+                })
+            } else {
+                array.put(JSONObject().apply {
+                    put("type", "file")
+                    put("file", JSONObject().apply {
+                        put("filename", att.filename)
+                        put("file_data", dataUrl)
+                    })
+                })
+            }
+        }
+        return array
+    }
+
+    /** Reads every picked URI in full (no size cap) and base64-encodes it, off the UI thread. */
+    private fun readAttachments(uris: List<Uri>) {
+        executor.execute {
+            val readOnes = mutableListOf<Attachment>()
+            val errors = mutableListOf<String>()
+            for (uri in uris) {
+                try {
+                    readOnes.add(readOneAttachment(uri))
+                } catch (e: Exception) {
+                    errors.add("${uriDisplayName(uri)}: ${e.message}")
+                }
+            }
+            postToUi {
+                pendingAttachments.addAll(readOnes)
+                updateAttachmentsPreview()
+                if (errors.isNotEmpty()) {
+                    Toast.makeText(
+                        this,
+                        "${getString(R.string.attachment_error_prefix)} ${errors.joinToString("، ")}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
+    private fun readOneAttachment(uri: Uri): Attachment {
+        val name = uriDisplayName(uri)
+        val mimeType = contentResolver.getType(uri) ?: guessMimeTypeFromName(name)
+        val bytes = contentResolver.openInputStream(uri)?.use { input ->
+            val buffer = ByteArrayOutputStream()
+            input.copyTo(buffer) // whole file, no size cap
+            buffer.toByteArray()
+        } ?: throw RuntimeException(getString(R.string.attachment_open_error))
+        val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return Attachment(filename = name, mimeType = mimeType, base64Data = base64)
+    }
+
+    private fun uriDisplayName(uri: Uri): String {
+        var name = uri.lastPathSegment ?: "file"
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0) cursor.getString(idx)?.let { name = it }
+            }
+        }
+        return name
+    }
+
+    private fun guessMimeTypeFromName(name: String): String {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
+    }
+
+    private fun updateAttachmentsPreview() {
+        if (pendingAttachments.isEmpty()) {
+            attachmentsPreview.visibility = View.GONE
+        } else {
+            attachmentsPreview.visibility = View.VISIBLE
+            attachmentsPreviewText.text = "📎 " + pendingAttachments.joinToString("، ") { it.filename }
+        }
     }
 
     /** Runs one or more OpenRouter calls until the model stops requesting tool calls. */
@@ -232,6 +365,7 @@ class ChatActivity : AppCompatActivity() {
     private fun setSending(sending: Boolean) {
         sendButton.isEnabled = !sending
         inputText.isEnabled = !sending
+        attachButton.isEnabled = !sending
     }
 
     private fun postToUi(action: () -> Unit) {
