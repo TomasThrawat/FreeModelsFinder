@@ -1,6 +1,4 @@
 <resources>
     <string name="app_name">Free Models Finder</string>
-    <string name="tab_openrouter">OpenRouter — Free Now</string>
-    <string name="tab_huggingface">Hugging Face</string>
-    <string name="hf_notice">Hugging Face مالهوش قائمة موديلز ثابتة زي اللي عند OpenRouter — الحساب المجاني بياخد credit شهري صغير يتصرف على أي موديل. القائمة دي لأشهر الموديلز المتاحة، مش ضمان تكلفة صفر.</string>
+    <string name="list_title">OpenRouter — Free Now</string>
 </resources>
